@@ -44,8 +44,14 @@ let serialApi = null;        // navigator.serial, or an adapter over the WebUSB 
 let usingPolyfill = false;
 const BOARD_USB_VID = 0x2E8A;   // Raspberry Pi (Cytron Maker Sumo RP2350 = 2E8A:112F)
 
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+
 async function pickSerialApi() {
-  if ("serial" in navigator) { serialApi = navigator.serial; return true; }
+  // Desktop Chrome/Edge: native Web Serial. On Android, Chrome may expose
+  // navigator.serial but the system service behind it is missing on many
+  // phones ("Could not find Android Serial Service"), so always go through
+  // WebUSB there.
+  if ("serial" in navigator && !IS_ANDROID) { serialApi = navigator.serial; return true; }
   if ("usb" in navigator) {
     try {
       const mod = await import("./vendor/web-serial-polyfill.js");
