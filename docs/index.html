@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Browser configurator for the Cytron Maker Sumo RP2350: motor trim, RC mapping, auto strategies and live sensors over USB.">
+  <title>Maker Sumo RP2350 Configurator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2730%27 fill=%27%23EDEDE8%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2724%27 fill=%27%23151515%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <h1>Maker Sumo RP2350</h1>
+    <span class="brand-sub">Configurator</span>
+  </div>
+  <div class="conn">
+    <span id="modeChip" class="chip chip-idle" hidden>Mode</span>
+    <span id="deviceChip" class="chip chip-idle">Not connected</span>
+    <button id="connectBtn" class="btn btn-primary" type="button">Connect</button>
+  </div>
+</header>
+
+<p id="unsupported" class="notice notice-error" hidden>
+  This browser can't talk to USB devices. Use Chrome or Edge on a computer, or Chrome on Android with a USB OTG cable. iPhone and iPad are not supported.
+</p>
+<p id="androidNote" class="notice notice-info" hidden>
+  Android: connect the robot with a USB OTG cable, then press Connect and choose "Maker Sumo RP2350". If it isn't listed, close any other app that uses the USB port.
+</p>
+
+<main class="layout">
+  <section class="work">
+    <nav class="tabs" aria-label="Settings">
+      <button class="tab is-active" data-tab="trim" type="button">Motor trim</button>
+      <button class="tab tab-rc" data-tab="rc" type="button">RC channels</button>
+      <button class="tab needs-autorc tab-auto" data-tab="auto" type="button">Fight</button>
+      <button class="tab needs-autorc tab-auto" data-tab="def" type="button">Defense</button>
+      <button class="tab needs-autorc tab-auto" data-tab="str" type="button">Opening moves</button>
+      <button class="tab" data-tab="backup" type="button">Backup</button>
+    </nav>
+
+    <p id="modeNotice" class="notice notice-info" hidden></p>
+    <p id="lockNotice" class="notice notice-info" hidden>
+      Motors stay off while the configurator is connected. Disconnect, then press START or use the IR module to run.
+    </p>
+
+    <!-- Motor trim -->
+    <article class="panel is-active" data-panel="trim">
+      <h2>Motor trim</h2>
+      <p class="help">If the robot drifts, reduce the stronger side. Negative values slow the left motor, positive values slow the right motor. Trims are kept separately for forward and backward driving.</p>
+      <div class="trim-row">
+        <label for="trimF">Forward</label>
+        <input id="trimF" type="range" min="-25" max="25" step="1" value="0">
+        <output id="trimFOut" for="trimF">0</output>
+        <button class="btn" type="button" data-save="F">Save forward</button>
+      </div>
+      <div class="trim-row">
+        <label for="trimB">Backward</label>
+        <input id="trimB" type="range" min="-25" max="25" step="1" value="0">
+        <output id="trimBOut" for="trimB">0</output>
+        <button class="btn" type="button" data-save="B">Save backward</button>
+      </div>
+      <p class="hint">Range −25 to +25 percent. 0 means both motors get the same power.</p>
+    </article>
+
+    <!-- RC mapping -->
+    <article class="panel" data-panel="rc">
+      <h2>RC channels</h2>
+      <p class="help">Choose which servo header carries throttle and which carries steering. Swap this if pushing the stick forward turns the robot instead of driving it.</p>
+      <div class="choice-list">
+        <label class="choice"><input type="radio" name="rcMap" value="0" checked><span>SERVO1 = throttle, SERVO2 = steering</span></label>
+        <label class="choice"><input type="radio" name="rcMap" value="1"><span>SERVO1 = steering, SERVO2 = throttle</span></label>
+      </div>
+      <button class="btn" type="button" id="saveRc">Save channel mapping</button>
+    </article>
+
+    <!-- Fight behaviour -->
+    <article class="panel" data-panel="auto">
+      <h2>Fight</h2>
+      <p class="help">How the robot searches, attacks and recovers from the ring edge. Speeds are percent of full power; times are milliseconds.</p>
+      <div class="field-grid" id="autoFields"></div>
+      <button class="btn" type="button" id="saveAuto">Save fight settings</button>
+    </article>
+
+    <!-- Defense -->
+    <article class="panel" data-panel="def">
+      <h2>Defense</h2>
+      <p class="help">Used when the DIP switches are set to 5 (ON OFF ON). The robot waits, moves a little, and repeats until it sees the opponent or runs out of repetitions.</p>
+      <div class="field-grid" id="defFields"></div>
+      <button class="btn" type="button" id="saveDef">Save defense</button>
+    </article>
+
+    <!-- Strategies -->
+    <article class="panel" data-panel="str">
+      <h2>Opening moves</h2>
+      <p class="help">Each DIP position has up to five timed moves the robot performs at the start of a match before it begins searching. Disabled rows are skipped.</p>
+      <div class="str-picker" id="strPicker"></div>
+      <table class="str-table">
+        <thead><tr><th>On</th><th>Left %</th><th>Right %</th><th>Duration ms</th></tr></thead>
+        <tbody id="strRows"></tbody>
+      </table>
+      <button class="btn" type="button" id="saveStr">Save opening moves</button>
+    </article>
+
+    <!-- Backup -->
+    <article class="panel" data-panel="backup">
+      <h2>Backup</h2>
+      <p class="help">Save every setting on this robot to a file, or write a saved file back. Useful for copying a tuned setup to another robot.</p>
+      <div class="btn-row">
+        <button class="btn" type="button" id="exportBtn">Download settings file</button>
+        <label class="btn btn-file">Load settings file<input id="importFile" type="file" accept="application/json"></label>
+      </div>
+      <p id="backupStatus" class="hint"></p>
+    </article>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <aside class="live">
+    <h2>Live sensors</h2>
+    <svg class="dohyo" viewBox="0 0 240 240" role="img" aria-labelledby="dohyoTitle">
+      <title id="dohyoTitle">Top view of the robot showing which sensors see something</title>
+      <circle cx="120" cy="120" r="112" class="ring"/>
+      <circle cx="120" cy="120" r="104" class="ring-face"/>
+      <!-- opponent beams: L, FL, FC, FR, R -->
+      <polygon id="beamL"  class="beam" points="92,118 20,96 20,140"/>
+      <polygon id="beamFL" class="beam" points="100,96 40,42 60,30"/>
+      <polygon id="beamFC" class="beam" points="110,86 106,14 134,14 130,86"/>
+      <polygon id="beamFR" class="beam" points="140,96 200,42 180,30"/>
+      <polygon id="beamR"  class="beam" points="148,118 220,96 220,140"/>
+      <!-- robot body -->
+      <rect x="92" y="86" width="56" height="68" rx="6" class="body"/>
+      <path d="M92 86 L148 86 L120 70 Z" class="blade"/>
+      <!-- edge sensors -->
+      <circle id="edgeL" cx="100" cy="92" r="5" class="edge"/>
+      <circle id="edgeR" cx="140" cy="92" r="5" class="edge"/>
+    </svg>
+    <dl class="readouts">
+      <div><dt>Edge left</dt><dd id="rdEdgeL">—</dd></div>
+      <div><dt>Edge right</dt><dd id="rdEdgeR">—</dd></div>
+      <div class="needs-autorc"><dt>Potentiometer</dt><dd id="rdPot">—</dd></div>
+      <div class="needs-autorc"><dt>RC throttle</dt><dd id="rdRcT">—</dd></div>
+      <div class="needs-autorc"><dt>RC steering</dt><dd id="rdRcS">—</dd></div>
+      <div><dt>START button</dt><dd id="rdStart">—</dd></div>
+      <div><dt>DIP position</dt><dd id="rdDip">—</dd></div>
+      <div><dt>Battery</dt><dd id="rdBatt">—</dd></div>
+    </dl>
+    <details class="log">
+      <summary>Serial log</summary>
+      <pre id="logBox"></pre>
+    </details>
+  </aside>
+</main>
+
+<footer class="foot">
+  Works with the MakerSumoRP2350 Arduino library examples RcSumo and AutoRcSumo. Close the Arduino serial monitor before connecting.
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
