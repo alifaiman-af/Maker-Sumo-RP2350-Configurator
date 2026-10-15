@@ -187,3 +187,6 @@ button, input, output { font: inherit; }
 body.fw-rc .needs-autorc { display: none; }
 
 @media (prefers-reduced-motion: reduce) { .dohyo .beam { transition: none; } }
+
+.btn-small { padding: 0.25rem 0.6rem; font-size: 0.85rem; margin-left: 0.5rem; vertical-align: middle; }
+.diag-out { display: block; margin-top: 0.4rem; font-size: 0.85rem; white-space: pre-wrap; font-family: ui-monospace, Menlo, Consolas, monospace; }

@@ -40,16 +40,27 @@ const STRATEGIES = [
 const STEP_ROWS = 5;
 
 // ---- Serial API: native Web Serial, or the WebUSB-based polyfill on Android --
-let serialApi = null;        // navigator.serial, or the polyfill's `serial`
+let serialApi = null;        // navigator.serial, or an adapter over the WebUSB polyfill
 let usingPolyfill = false;
+const BOARD_USB_VID = 0x2E8A;   // Raspberry Pi (Cytron Maker Sumo RP2350 = 2E8A:112F)
 
 async function pickSerialApi() {
   if ("serial" in navigator) { serialApi = navigator.serial; return true; }
   if ("usb" in navigator) {
     try {
       const mod = await import("./vendor/web-serial-polyfill.js");
-      serialApi = mod.serial;
       usingPolyfill = true;
+      // Ask Android for the board by vendor id (or any CDC device), then wrap
+      // it with the polyfill's SerialPort. Avoids the class-only filter, which
+      // some Android builds fail to match on composite (class 0xEF) devices.
+      serialApi = {
+        async requestPort() {
+          const device = await navigator.usb.requestDevice({
+            filters: [{ vendorId: BOARD_USB_VID }, { classCode: 2 }],
+          });
+          return new mod.SerialPort(device);
+        },
+      };
       return true;
     } catch (err) {
       console.error("polyfill failed to load", err);
@@ -578,6 +589,20 @@ pickSerialApi().then((ok) => {
     // Android: WebUSB through the polyfill. Unplug detection comes from the USB layer.
     $("#androidNote").hidden = false;
     navigator.usb.addEventListener("disconnect", () => { if (port) disconnect("The board was unplugged."); });
+    // Diagnostic: show every USB device Android offers, with no class filter.
+    $("#usbDiag").addEventListener("click", async () => {
+      const out = $("#usbDiagOut");
+      try {
+        const dev = await navigator.usb.requestDevice({ filters: [] });
+        const hex = (n) => n.toString(16).padStart(4, "0").toUpperCase();
+        const ifaces = (dev.configurations?.[0]?.interfaces || [])
+          .map((i) => `if${i.interfaceNumber}:class ${i.alternates?.[0]?.interfaceClass}`).join(", ");
+        out.textContent = `Picked: ${hex(dev.vendorId)}:${hex(dev.productId)} ${dev.manufacturerName || ""} ${dev.productName || ""}` +
+          ` | device class ${dev.deviceClass} | ${ifaces || "no interface info"}`;
+      } catch (err) {
+        out.textContent = `Picker: ${err.message}`;
+      }
+    });
   } else {
     navigator.serial.addEventListener("disconnect", (e) => { if (port && e.target === port) disconnect("The board was unplugged."); });
   }
